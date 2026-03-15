@@ -32,8 +32,8 @@ const INITIAL_STEPS: DemoStep[] = [
   { id: "done", label: "Complete", status: "waiting" },
 ];
 
-// Only use 5 seed emails to stay within Gemini free tier rate limits (15 RPM)
-const DEMO_EMAILS = SEED_EMAILS.slice(0, 5);
+// Only use 3 seed emails to stay within Gemini free tier rate limits (15 RPM)
+const DEMO_EMAILS = SEED_EMAILS.slice(0, 3);
 
 function buildSteps(activeId: DemoStepId): DemoStep[] {
   const activeIdx = STEP_ORDER.indexOf(activeId);
@@ -74,62 +74,77 @@ function DemoContent() {
         const seed = DEMO_EMAILS[idx];
         setProgress(`Classifying email ${idx + 1} of ${DEMO_EMAILS.length}: ${seed.from_name}...`);
 
-        const res = await fetch("/api/pipeline", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: `From: ${seed.from_name} <${seed.from_address}>\nSubject: ${seed.subject}\n\n${seed.body_text}`,
-            password: getStoredPassword(),
-          }),
-        });
+        try {
+          const res = await fetch("/api/pipeline", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: `From: ${seed.from_name} <${seed.from_address}>\nSubject: ${seed.subject}\n\n${seed.body_text}`,
+              password: getStoredPassword(),
+            }),
+          });
 
-        if (!res.ok) {
-          throw new Error(`Pipeline failed for email ${idx + 1}`);
-        }
-
-        // Read SSE to extract classification
-        const reader = res.body!.getReader();
-        const decoder = new TextDecoder();
-        let result = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          result += decoder.decode(value, { stream: true });
-        }
-
-        // Parse last ticket state from SSE
-        const dataMatches = [...result.matchAll(/data: ({.*})/g)];
-        const lastData = dataMatches[dataMatches.length - 1];
-        if (lastData) {
-          const parsed = JSON.parse(lastData[1]);
-          if (parsed.ticket) {
-            const newEmail: Email = {
-              id: parsed.ticket.id ?? crypto.randomUUID(),
-              account_id: "demo",
-              gmail_id: `demo-${crypto.randomUUID()}`,
-              gmail_message_id: null,
-              thread_id: null,
-              from_address: seed.from_address,
-              from_name: seed.from_name,
-              subject: seed.subject,
-              snippet: seed.body_text.slice(0, 100),
-              body_text: seed.body_text,
-              received_at: new Date().toISOString(),
-              category: parsed.ticket.category,
-              priority: parsed.ticket.priority,
-              sentiment: parsed.ticket.sentiment,
-              summary: parsed.ticket.category
-                ? `${seed.subject}`
-                : seed.subject,
-              reply_deadline: null,
-              draft_reply: parsed.ticket.ai_response,
-              reply_sent: false,
-              synced_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            };
-            // Show each email as it's classified
-            setEmails((prev) => [...prev, newEmail]);
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
           }
+
+          // Read SSE to extract classification
+          const reader = res.body!.getReader();
+          const decoder = new TextDecoder();
+          let result = "";
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            result += decoder.decode(value, { stream: true });
+          }
+
+          // Check for error events in SSE
+          if (result.includes("event: error")) {
+            const errorMatch = result.match(/event: error\ndata: ({.*})/);
+            if (errorMatch) {
+              const errData = JSON.parse(errorMatch[1]);
+              throw new Error(errData.error || "Classification failed");
+            }
+          }
+
+          // Parse last ticket state from SSE
+          const dataMatches = [...result.matchAll(/data: ({.*})/g)];
+          const lastData = dataMatches[dataMatches.length - 1];
+          if (lastData) {
+            const parsed = JSON.parse(lastData[1]);
+            if (parsed.ticket && parsed.ticket.category) {
+              const newEmail: Email = {
+                id: parsed.ticket.id ?? crypto.randomUUID(),
+                account_id: "demo",
+                gmail_id: `demo-${crypto.randomUUID()}`,
+                gmail_message_id: null,
+                thread_id: null,
+                from_address: seed.from_address,
+                from_name: seed.from_name,
+                subject: seed.subject,
+                snippet: seed.body_text.slice(0, 100),
+                body_text: seed.body_text,
+                received_at: new Date().toISOString(),
+                category: parsed.ticket.category,
+                priority: parsed.ticket.priority,
+                sentiment: parsed.ticket.sentiment,
+                summary: seed.subject,
+                reply_deadline: null,
+                draft_reply: parsed.ticket.ai_response,
+                reply_sent: false,
+                synced_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              };
+              setEmails((prev) => [...prev, newEmail]);
+            }
+          }
+        } catch (emailErr) {
+          // Show the error but continue processing remaining emails
+          const msg = emailErr instanceof Error ? emailErr.message : "Unknown error";
+          setError(`Email ${idx + 1} failed: ${msg}. ${idx + 1 < DEMO_EMAILS.length ? "Continuing..." : ""}`);
+          // Wait a bit before next email in case of rate limiting
+          await new Promise((r) => setTimeout(r, 2000));
         }
       }
 
