@@ -214,7 +214,7 @@ function DemoContent() {
 
 export default function DemoPage() {
   return (
-    <PasswordGate>
+    <PasswordGate darkMode>
       <DemoContent />
     </PasswordGate>
   );

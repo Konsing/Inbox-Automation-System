@@ -9,9 +9,10 @@ const STORAGE_KEY = "demo-auth";
 
 interface PasswordGateProps {
   children: React.ReactNode;
+  darkMode?: boolean;
 }
 
-export function PasswordGate({ children }: PasswordGateProps) {
+export function PasswordGate({ children, darkMode }: PasswordGateProps) {
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -58,7 +59,7 @@ export function PasswordGate({ children }: PasswordGateProps) {
   if (authenticated) return <>{children}</>;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className={`${darkMode ? "dark" : ""} flex min-h-screen items-center justify-center bg-background p-4`}>
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
