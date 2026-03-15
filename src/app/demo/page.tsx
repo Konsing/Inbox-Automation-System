@@ -32,6 +32,9 @@ const INITIAL_STEPS: DemoStep[] = [
   { id: "done", label: "Complete", status: "waiting" },
 ];
 
+// Only use 5 seed emails to stay within Gemini free tier rate limits (15 RPM)
+const DEMO_EMAILS = SEED_EMAILS.slice(0, 5);
+
 function buildSteps(activeId: DemoStepId): DemoStep[] {
   const activeIdx = STEP_ORDER.indexOf(activeId);
   return INITIAL_STEPS.map((s, i) => ({
@@ -45,12 +48,14 @@ function DemoContent() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState("");
 
   const runDemoSync = useCallback(async () => {
     setIsRunning(true);
     setError(null);
     setEmails([]);
     setSteps(INITIAL_STEPS);
+    setProgress("");
 
     try {
       // Simulate authenticating
@@ -59,13 +64,16 @@ function DemoContent() {
 
       // Simulate fetching
       setSteps(buildSteps("fetching"));
+      setProgress(`Found ${DEMO_EMAILS.length} unread emails`);
       await new Promise((r) => setTimeout(r, 800));
 
-      // Classify seed emails via real AI pipeline
+      // Classify seed emails via real AI pipeline — show each as it completes
       setSteps(buildSteps("classifying"));
 
-      const classifiedEmails: Email[] = [];
-      for (const seed of SEED_EMAILS) {
+      for (let idx = 0; idx < DEMO_EMAILS.length; idx++) {
+        const seed = DEMO_EMAILS[idx];
+        setProgress(`Classifying email ${idx + 1} of ${DEMO_EMAILS.length}: ${seed.from_name}...`);
+
         const res = await fetch("/api/pipeline", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -74,6 +82,10 @@ function DemoContent() {
             password: getStoredPassword(),
           }),
         });
+
+        if (!res.ok) {
+          throw new Error(`Pipeline failed for email ${idx + 1}`);
+        }
 
         // Read SSE to extract classification
         const reader = res.body!.getReader();
@@ -91,7 +103,7 @@ function DemoContent() {
         if (lastData) {
           const parsed = JSON.parse(lastData[1]);
           if (parsed.ticket) {
-            classifiedEmails.push({
+            const newEmail: Email = {
               id: parsed.ticket.id ?? crypto.randomUUID(),
               account_id: "demo",
               gmail_id: `demo-${crypto.randomUUID()}`,
@@ -106,32 +118,37 @@ function DemoContent() {
               category: parsed.ticket.category,
               priority: parsed.ticket.priority,
               sentiment: parsed.ticket.sentiment,
-              summary: seed.subject,
+              summary: parsed.ticket.category
+                ? `${seed.subject}`
+                : seed.subject,
               reply_deadline: null,
               draft_reply: parsed.ticket.ai_response,
               reply_sent: false,
               synced_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
-            });
+            };
+            // Show each email as it's classified
+            setEmails((prev) => [...prev, newEmail]);
           }
         }
       }
 
-      // Drafting (already done via pipeline)
+      // Remaining steps (simulated)
       setSteps(buildSteps("drafting"));
-      await new Promise((r) => setTimeout(r, 300));
-
-      // Storing (simulated)
-      setSteps(buildSteps("storing"));
+      setProgress("Generating draft replies...");
       await new Promise((r) => setTimeout(r, 400));
 
-      // Notifying (simulated Slack)
+      setSteps(buildSteps("storing"));
+      setProgress("Saving to database...");
+      await new Promise((r) => setTimeout(r, 400));
+
       setSteps(buildSteps("notifying"));
-      await new Promise((r) => setTimeout(r, 300));
+      setProgress("Posting Slack digest...");
+      await new Promise((r) => setTimeout(r, 400));
 
       // Done
       setSteps(buildSteps("done"));
-      setEmails(classifiedEmails);
+      setProgress(`Complete — ${DEMO_EMAILS.length} emails classified`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Demo sync failed");
     } finally {
@@ -142,14 +159,14 @@ function DemoContent() {
   const hasStarted = steps.some((s) => s.status !== "waiting");
 
   return (
-    <div className="dark min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground">
       <Header />
       <main className="container mx-auto space-y-6 px-4 py-6">
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950">
+        <div className="rounded-lg border border-blue-900 bg-blue-950 px-4 py-3">
           <div className="flex items-center gap-2">
-            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              Demo mode — uses sample emails to demonstrate the AI classification and reply pipeline.
+            <Info className="h-4 w-4 text-blue-400" />
+            <p className="text-sm text-blue-200">
+              Demo mode — uses sample emails to demonstrate the AI classification and reply pipeline. Click &quot;Run Demo Sync&quot; to start.
             </p>
           </div>
         </div>
@@ -158,7 +175,7 @@ function DemoContent() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Demo Sync</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             <Button onClick={runDemoSync} disabled={isRunning}>
               {isRunning ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -167,6 +184,9 @@ function DemoContent() {
               )}
               {isRunning ? "Running..." : "Run Demo Sync"}
             </Button>
+            {progress && (
+              <p className="text-sm text-muted-foreground">{progress}</p>
+            )}
           </CardContent>
         </Card>
 
@@ -187,8 +207,8 @@ function DemoContent() {
                 ))}
               </div>
               {error && (
-                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950">
-                  <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
+                <div className="mt-3 rounded-lg border border-red-900 bg-red-950 p-4">
+                  <p className="text-sm text-red-200">{error}</p>
                 </div>
               )}
             </CardContent>
@@ -197,7 +217,9 @@ function DemoContent() {
 
         {emails.length > 0 && (
           <div className="space-y-3">
-            <h2 className="text-base font-semibold">Classified Emails</h2>
+            <h2 className="text-base font-semibold">
+              Classified Emails ({emails.length}{isRunning ? ` of ${DEMO_EMAILS.length}` : ""})
+            </h2>
             <EmailList
               emails={emails}
               isLoading={false}
@@ -214,7 +236,7 @@ function DemoContent() {
 
 export default function DemoPage() {
   return (
-    <PasswordGate darkMode>
+    <PasswordGate>
       <DemoContent />
     </PasswordGate>
   );
