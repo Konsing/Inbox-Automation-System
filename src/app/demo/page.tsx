@@ -7,7 +7,7 @@ import { PipelineStepNode } from "@/components/pipeline-step";
 import { CategoryBadge, PriorityBadge, SentimentBadge } from "@/components/classification-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Play, Loader2, Info, Mail, ArrowRight, Check, AlertCircle, Bot, MessageSquare, History } from "lucide-react";
+import { Play, Loader2, Info, Mail, ArrowRight, Check, AlertCircle, Bot, MessageSquare, History, BarChart3, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { SEED_EMAILS } from "@/lib/seed-emails";
 import { getStoredPassword } from "@/components/password-gate";
 import type { PipelineStepStatus, Category, Priority, Sentiment, Ticket } from "@/lib/types";
@@ -162,6 +162,198 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
         <ActivityItem key={entry.id} entry={entry} isLatest={i === entries.length - 1} />
       ))}
     </div>
+  );
+}
+
+// --- Run Summary ---
+
+const PRIORITY_RESPONSE_TIME: Record<Priority, string> = {
+  urgent: "Within 1 hour",
+  high: "Within 4 hours",
+  medium: "Within 24 hours",
+  low: "Within 48 hours",
+};
+
+const PRIORITY_ORDER: Priority[] = ["urgent", "high", "medium", "low"];
+
+const PRIORITY_COLORS: Record<Priority, string> = {
+  urgent: "bg-red-500",
+  high: "bg-orange-500",
+  medium: "bg-yellow-500",
+  low: "bg-green-500",
+};
+
+const SENTIMENT_COLORS: Record<Sentiment, string> = {
+  negative: "bg-red-500",
+  neutral: "bg-gray-500",
+  positive: "bg-green-500",
+};
+
+interface ClassifiedEmail {
+  from: string;
+  subject: string;
+  body: string;
+  category: Category;
+  priority: Priority;
+  sentiment: Sentiment;
+  aiResponse?: string;
+}
+
+function getClassifiedEmails(entries: ActivityEntry[]): ClassifiedEmail[] {
+  return entries
+    .filter((e) => e.type === "classified" && e.email?.category)
+    .map((e) => ({
+      from: e.email!.from,
+      subject: e.email!.subject,
+      body: e.email!.body,
+      category: e.email!.category!,
+      priority: e.email!.priority!,
+      sentiment: e.email!.sentiment!,
+      aiResponse: e.email!.aiResponse,
+    }));
+}
+
+function StatBar({ label, segments }: { label: string; segments: { color: string; count: number; label: string }[] }) {
+  const total = segments.reduce((sum, s) => sum + s.count, 0);
+  if (total === 0) return null;
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+        {segments.filter((s) => s.count > 0).map((seg) => (
+          <div
+            key={seg.label}
+            className={`${seg.color} transition-all duration-500`}
+            style={{ width: `${(seg.count / total) * 100}%` }}
+          />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+        {segments.filter((s) => s.count > 0).map((seg) => (
+          <div key={seg.label} className="flex items-center gap-1.5">
+            <div className={`h-2 w-2 rounded-full ${seg.color}`} />
+            <span className="text-xs text-muted-foreground">{seg.count} {seg.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ActionItem({ email, index }: { email: ClassifiedEmail; index: number }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="rounded-md border border-border">
+      <div
+        className="flex cursor-pointer items-start gap-3 p-3 transition-colors hover:bg-muted/30"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
+          {index + 1}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium truncate">{email.subject}</p>
+            {expanded ? <ChevronUp className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+          </div>
+          <p className="text-xs text-muted-foreground">From {email.from}</p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <PriorityBadge priority={email.priority} />
+            <CategoryBadge category={email.category} />
+            <SentimentBadge sentiment={email.sentiment} />
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              {PRIORITY_RESPONSE_TIME[email.priority]}
+            </span>
+          </div>
+        </div>
+      </div>
+      {expanded && email.aiResponse && (
+        <div className="border-t border-border px-3 pb-3 pt-2 animate-in fade-in duration-200">
+          <div className="rounded-md border border-blue-900/50 bg-blue-950/30 p-3">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <Bot className="h-3.5 w-3.5 text-blue-400" />
+              <span className="text-xs font-medium text-blue-400">Suggested Reply</span>
+            </div>
+            <p className="text-sm text-blue-200/80 whitespace-pre-wrap">{email.aiResponse}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RunSummary({ entries }: { entries: ActivityEntry[] }) {
+  const emails = getClassifiedEmails(entries);
+  if (emails.length === 0) return null;
+
+  // Sort by priority (urgent first)
+  const sorted = [...emails].sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority));
+
+  const priorityCounts = PRIORITY_ORDER.map((p) => ({
+    color: PRIORITY_COLORS[p],
+    count: emails.filter((e) => e.priority === p).length,
+    label: p,
+  }));
+
+  const sentimentCounts: Sentiment[] = ["negative", "neutral", "positive"];
+  const sentimentSegments = sentimentCounts.map((s) => ({
+    color: SENTIMENT_COLORS[s],
+    count: emails.filter((e) => e.sentiment === s).length,
+    label: s,
+  }));
+
+  const categoryCounts = (["refund", "billing", "technical", "general"] as Category[]).map((c) => ({
+    color: c === "refund" ? "bg-blue-500" : c === "billing" ? "bg-purple-500" : c === "technical" ? "bg-orange-500" : "bg-gray-500",
+    count: emails.filter((e) => e.category === c).length,
+    label: c,
+  }));
+
+  const urgentHighCount = emails.filter((e) => e.priority === "urgent" || e.priority === "high").length;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <BarChart3 className="h-4 w-4" />
+          Run Summary
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Stats overview */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-lg border border-border bg-muted/20 p-3 text-center">
+            <p className="text-2xl font-bold">{emails.length}</p>
+            <p className="text-xs text-muted-foreground">Classified</p>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/20 p-3 text-center">
+            <p className="text-2xl font-bold text-orange-400">{urgentHighCount}</p>
+            <p className="text-xs text-muted-foreground">Need Attention</p>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/20 p-3 text-center">
+            <p className="text-2xl font-bold text-blue-400">{emails.filter((e) => e.aiResponse).length}</p>
+            <p className="text-xs text-muted-foreground">Drafts Ready</p>
+          </div>
+        </div>
+
+        {/* Distribution bars */}
+        <div className="space-y-3">
+          <StatBar label="Priority Distribution" segments={priorityCounts} />
+          <StatBar label="Sentiment Analysis" segments={sentimentSegments} />
+          <StatBar label="Categories" segments={categoryCounts} />
+        </div>
+
+        {/* Action items sorted by priority */}
+        <div className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">Action Items — Reply Timeline</p>
+          {sorted.map((email, i) => (
+            <ActionItem key={`${email.subject}-${i}`} email={email} index={i} />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -534,6 +726,9 @@ function DemoContent() {
             </CardContent>
           </Card>
         )}
+
+        {/* Run Summary — shown after pipeline completes */}
+        {!isRunning && <RunSummary entries={activity} />}
 
         {/* Previous Runs */}
         <PreviousRuns runs={previousRuns} />
