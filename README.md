@@ -9,8 +9,8 @@ An AI-powered email classification and response pipeline with real-time visualiz
 <!-- Demo page: live activity feed with classification results -->
 ![Demo — Live Activity Feed](docs/screenshots/demo.png)
 
-<!-- Dashboard: Gmail connection and sync controls -->
-![Dashboard](docs/screenshots/dashboard.png)
+<!-- Landing page / home screen -->
+![Home](docs/screenshots/home.png)
 
 <!-- Dashboard after syncing: classified emails with badges -->
 ![Dashboard — After Sync](docs/screenshots/dashboard-synced.png)
