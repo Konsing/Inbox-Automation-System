@@ -28,12 +28,16 @@ An AI-powered email classification and response pipeline with real-time visualiz
 
 ### Slack Notifications
 
-<p align="center">
-  <img src="docs/screenshots/slack-browser.png" alt="Slack Notification — Browser" height="400">
-  &nbsp;&nbsp;&nbsp;
-  <img src="docs/screenshots/slack-mobile.png" alt="Slack Notification — Mobile" height="400">
-</p>
-<p align="center"><em>Slack digest notification — browser (left) and mobile (right).</em></p>
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/slack-browser.png" alt="Slack Notification — Browser" height="400"></td>
+    <td align="center"><img src="docs/screenshots/slack-mobile.png" alt="Slack Notification — Mobile" height="400"></td>
+  </tr>
+  <tr>
+    <td align="center"><em>Browser</em></td>
+    <td align="center"><em>Mobile</em></td>
+  </tr>
+</table>
 
 ## What It Does
 
