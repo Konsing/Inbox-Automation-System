@@ -780,21 +780,13 @@ function DemoContent() {
           </Card>
         )}
 
-        {/* Run Summary — from activity if just ran, otherwise from latest Supabase run */}
-        {!isRunning && (() => {
-          const fromActivity = getClassifiedFromActivity(activity);
-          const fromDb = previousRuns.length > 0 ? getClassifiedFromTickets(previousRuns[0]) : [];
-          const summaryEmails = fromActivity.length > 0 ? fromActivity : fromDb;
-          const summaryUsesLatestRun = fromActivity.length === 0 && fromDb.length > 0;
-          return (
-            <>
-              <RunSummary emails={summaryEmails} />
-              {/* Previous Runs — skip the latest run if already shown in summary */}
-              <PreviousRuns runs={summaryUsesLatestRun ? previousRuns.slice(1) : previousRuns} />
-            </>
-          );
-        })()}
-        {isRunning && <PreviousRuns runs={previousRuns} />}
+        {/* Run Summary — accumulates all classified tickets from Supabase */}
+        {!isRunning && (
+          <RunSummary emails={getClassifiedFromTickets(previousRuns.flat())} />
+        )}
+
+        {/* Previous Runs */}
+        <PreviousRuns runs={previousRuns} />
       </main>
     </div>
   );
