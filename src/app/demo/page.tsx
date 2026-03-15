@@ -173,8 +173,13 @@ function DemoContent() {
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const addActivity = useCallback((entry: Omit<ActivityEntry, "id" | "timestamp">) => {
-    setActivity((prev) => [...prev, { ...entry, id: crypto.randomUUID(), timestamp: new Date() }]);
+  const addActivity = useCallback((entry: Omit<ActivityEntry, "id" | "timestamp"> & { id?: string }) => {
+    const full = { ...entry, id: entry.id ?? crypto.randomUUID(), timestamp: new Date() };
+    setActivity((prev) => [...prev, full]);
+  }, []);
+
+  const updateActivity = useCallback((id: string, updates: Partial<Omit<ActivityEntry, "id">>) => {
+    setActivity((prev) => prev.map((e) => (e.id === id ? { ...e, ...updates, timestamp: new Date() } : e)));
   }, []);
 
   const runDemoSync = useCallback(async () => {
@@ -211,7 +216,9 @@ function DemoContent() {
 
       for (let idx = 0; idx < DEMO_EMAILS.length; idx++) {
         const seed = DEMO_EMAILS[idx];
+        const entryId = `classify-${idx}`;
         addActivity({
+          id: entryId,
           type: "classifying",
           message: `Classifying email ${idx + 1} of ${DEMO_EMAILS.length}: "${seed.subject}"`,
         });
@@ -256,7 +263,8 @@ function DemoContent() {
           if (lastData) {
             const parsed = JSON.parse(lastData[1]);
             if (parsed.ticket && parsed.ticket.category) {
-              addActivity({
+              // Replace the "classifying" spinner with the classified result
+              updateActivity(entryId, {
                 type: "classified",
                 message: `Classified: "${seed.subject}"`,
                 email: {
@@ -273,7 +281,8 @@ function DemoContent() {
           }
         } catch (emailErr) {
           const msg = emailErr instanceof Error ? emailErr.message : "Unknown error";
-          addActivity({
+          // Replace the "classifying" spinner with an error
+          updateActivity(entryId, {
             type: "error",
             message: `Failed to classify email ${idx + 1}: ${msg}`,
           });
