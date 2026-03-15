@@ -19,7 +19,7 @@ function updateStepStatuses(currentStepId: string): PipelineStep[] {
   return INITIAL_STEPS.map((step, i) => {
     let status: PipelineStepStatus;
     if (i < currentIndex) status = "complete";
-    else if (i === currentIndex) status = "active";
+    else if (i === currentIndex) status = currentStepId === "done" ? "complete" : "active";
     else status = "waiting";
     return { ...step, status };
   });
