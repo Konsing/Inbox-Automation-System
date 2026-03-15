@@ -199,7 +199,18 @@ interface ClassifiedEmail {
   aiResponse?: string;
 }
 
-function getClassifiedEmails(entries: ActivityEntry[]): ClassifiedEmail[] {
+function parseTicketMessage(message: string): { from: string; subject: string; body: string } {
+  const fromMatch = message.match(/^From: (.+?)$/m);
+  const subjectMatch = message.match(/^Subject: (.+?)$/m);
+  const bodyStart = message.indexOf("\n\n");
+  return {
+    from: fromMatch?.[1] ?? "Unknown",
+    subject: subjectMatch?.[1] ?? "No subject",
+    body: bodyStart >= 0 ? message.slice(bodyStart + 2) : message,
+  };
+}
+
+function getClassifiedFromActivity(entries: ActivityEntry[]): ClassifiedEmail[] {
   return entries
     .filter((e) => e.type === "classified" && e.email?.category)
     .map((e) => ({
@@ -211,6 +222,23 @@ function getClassifiedEmails(entries: ActivityEntry[]): ClassifiedEmail[] {
       sentiment: e.email!.sentiment!,
       aiResponse: e.email!.aiResponse,
     }));
+}
+
+function getClassifiedFromTickets(tickets: Ticket[]): ClassifiedEmail[] {
+  return tickets
+    .filter((t) => t.status === "done" && t.category)
+    .map((t) => {
+      const { from, subject, body } = parseTicketMessage(t.message);
+      return {
+        from,
+        subject,
+        body,
+        category: t.category!,
+        priority: t.priority!,
+        sentiment: t.sentiment!,
+        aiResponse: t.ai_response ?? undefined,
+      };
+    });
 }
 
 function StatBar({ label, segments }: { label: string; segments: { color: string; count: number; label: string }[] }) {
@@ -285,8 +313,7 @@ function ActionItem({ email, index }: { email: ClassifiedEmail; index: number })
   );
 }
 
-function RunSummary({ entries }: { entries: ActivityEntry[] }) {
-  const emails = getClassifiedEmails(entries);
+function RunSummary({ emails }: { emails: ClassifiedEmail[] }) {
   if (emails.length === 0) return null;
 
   // Sort by priority (urgent first)
@@ -358,17 +385,6 @@ function RunSummary({ entries }: { entries: ActivityEntry[] }) {
 }
 
 // --- Previous Runs ---
-
-function parseTicketMessage(message: string): { from: string; subject: string; body: string } {
-  const fromMatch = message.match(/^From: (.+?)$/m);
-  const subjectMatch = message.match(/^Subject: (.+?)$/m);
-  const bodyStart = message.indexOf("\n\n");
-  return {
-    from: fromMatch?.[1] ?? "Unknown",
-    subject: subjectMatch?.[1] ?? "No subject",
-    body: bodyStart >= 0 ? message.slice(bodyStart + 2) : message,
-  };
-}
 
 function groupTicketsByRun(tickets: Ticket[]): Ticket[][] {
   if (tickets.length === 0) return [];
@@ -444,8 +460,28 @@ function TicketResult({ ticket }: { ticket: Ticket }) {
   );
 }
 
+interface DayGroup {
+  dateLabel: string;
+  runs: { time: Date; tickets: Ticket[] }[];
+}
+
+function groupRunsByDay(runs: Ticket[][]): DayGroup[] {
+  const dayMap = new Map<string, { time: Date; tickets: Ticket[] }[]>();
+
+  for (const run of runs) {
+    const runTime = new Date(run[0].created_at);
+    const dateKey = runTime.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    if (!dayMap.has(dateKey)) dayMap.set(dateKey, []);
+    dayMap.get(dateKey)!.push({ time: runTime, tickets: run });
+  }
+
+  return Array.from(dayMap.entries()).map(([dateLabel, runs]) => ({ dateLabel, runs }));
+}
+
 function PreviousRuns({ runs }: { runs: Ticket[][] }) {
   if (runs.length === 0) return null;
+
+  const days = groupRunsByDay(runs);
 
   return (
     <Card>
@@ -455,31 +491,48 @@ function PreviousRuns({ runs }: { runs: Ticket[][] }) {
           Previous Runs
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {runs.map((run, runIdx) => {
-          const runTime = new Date(run[0].created_at);
-          const successCount = run.filter((t) => t.status === "done").length;
-          const errorCount = run.filter((t) => t.status === "error").length;
+      <CardContent className="space-y-0">
+        {days.map((day, dayIdx) => (
+          <div key={day.dateLabel}>
+            {/* Day separator */}
+            {dayIdx > 0 && <div className="my-5 border-t-2 border-border" />}
 
-          return (
-            <div key={runIdx} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-medium text-muted-foreground">
-                  {runTime.toLocaleDateString()} at {runTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {successCount} classified{errorCount > 0 ? `, ${errorCount} failed` : ""}
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                {run.map((ticket) => (
-                  <TicketResult key={ticket.id} ticket={ticket} />
-                ))}
-              </div>
-              {runIdx < runs.length - 1 && <div className="border-t border-border" />}
+            {/* Day header */}
+            <div className="mb-3 flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <p className="shrink-0 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {day.dateLabel}
+              </p>
+              <div className="h-px flex-1 bg-border" />
             </div>
-          );
-        })}
+
+            {/* Runs within this day */}
+            <div className="space-y-4">
+              {day.runs.map((run, runIdx) => {
+                const successCount = run.tickets.filter((t) => t.status === "done").length;
+                const errorCount = run.tickets.filter((t) => t.status === "error").length;
+
+                return (
+                  <div key={runIdx} className="rounded-lg border border-border bg-muted/10 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-foreground">
+                        {run.time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {successCount} classified{errorCount > 0 ? `, ${errorCount} failed` : ""}
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {run.tickets.map((ticket) => (
+                        <TicketResult key={ticket.id} ticket={ticket} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );
@@ -727,8 +780,13 @@ function DemoContent() {
           </Card>
         )}
 
-        {/* Run Summary — shown after pipeline completes */}
-        {!isRunning && <RunSummary entries={activity} />}
+        {/* Run Summary — from activity if just ran, otherwise from latest Supabase run */}
+        {!isRunning && (() => {
+          const fromActivity = getClassifiedFromActivity(activity);
+          const fromDb = previousRuns.length > 0 ? getClassifiedFromTickets(previousRuns[0]) : [];
+          const summaryEmails = fromActivity.length > 0 ? fromActivity : fromDb;
+          return <RunSummary emails={summaryEmails} />;
+        })()}
 
         {/* Previous Runs */}
         <PreviousRuns runs={previousRuns} />
