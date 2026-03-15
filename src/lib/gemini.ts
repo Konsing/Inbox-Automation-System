@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { Classification, Category, Priority, Sentiment, EmailClassification, ReplyDeadline } from "./types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-const MODEL = "gemini-2.5-flash";
+const MODEL = "gemini-3.1-flash-lite";
 
 const VALID_CATEGORIES: Category[] = ["refund", "billing", "technical", "general"];
 const VALID_PRIORITIES: Priority[] = ["low", "medium", "high", "urgent"];
