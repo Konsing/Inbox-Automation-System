@@ -7,10 +7,10 @@ import { PipelineStepNode } from "@/components/pipeline-step";
 import { CategoryBadge, PriorityBadge, SentimentBadge } from "@/components/classification-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Play, Loader2, Info, Mail, ArrowRight, Check, AlertCircle, Bot, MessageSquare } from "lucide-react";
+import { Play, Loader2, Info, Mail, ArrowRight, Check, AlertCircle, Bot, MessageSquare, History } from "lucide-react";
 import { SEED_EMAILS } from "@/lib/seed-emails";
 import { getStoredPassword } from "@/components/password-gate";
-import type { PipelineStepStatus, Category, Priority, Sentiment } from "@/lib/types";
+import type { PipelineStepStatus, Category, Priority, Sentiment, Ticket } from "@/lib/types";
 
 type DemoStepId = "authenticating" | "fetching" | "classifying" | "drafting" | "storing" | "notifying" | "done";
 
@@ -165,11 +165,140 @@ function ActivityFeed({ entries }: { entries: ActivityEntry[] }) {
   );
 }
 
+// --- Previous Runs ---
+
+function parseTicketMessage(message: string): { from: string; subject: string; body: string } {
+  const fromMatch = message.match(/^From: (.+?)$/m);
+  const subjectMatch = message.match(/^Subject: (.+?)$/m);
+  const bodyStart = message.indexOf("\n\n");
+  return {
+    from: fromMatch?.[1] ?? "Unknown",
+    subject: subjectMatch?.[1] ?? "No subject",
+    body: bodyStart >= 0 ? message.slice(bodyStart + 2) : message,
+  };
+}
+
+function groupTicketsByRun(tickets: Ticket[]): Ticket[][] {
+  if (tickets.length === 0) return [];
+  const groups: Ticket[][] = [];
+  let current: Ticket[] = [tickets[0]];
+
+  for (let i = 1; i < tickets.length; i++) {
+    const prev = new Date(tickets[i - 1].created_at).getTime();
+    const curr = new Date(tickets[i].created_at).getTime();
+    // Tickets within 5 minutes of each other = same run
+    if (Math.abs(prev - curr) < 5 * 60 * 1000) {
+      current.push(tickets[i]);
+    } else {
+      groups.push(current);
+      current = [tickets[i]];
+    }
+  }
+  groups.push(current);
+  return groups;
+}
+
+function TicketResult({ ticket }: { ticket: Ticket }) {
+  const { from, subject, body } = parseTicketMessage(ticket.message);
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div
+      className="cursor-pointer rounded-md border border-border p-3 transition-colors hover:bg-muted/30"
+      onClick={() => setExpanded(!expanded)}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium truncate">{from}</p>
+          <p className="text-sm text-muted-foreground truncate">{subject}</p>
+        </div>
+        {ticket.status === "error" && (
+          <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+        )}
+      </div>
+      {ticket.category && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <CategoryBadge category={ticket.category} />
+          {ticket.priority && <PriorityBadge priority={ticket.priority} />}
+          {ticket.sentiment && <SentimentBadge sentiment={ticket.sentiment} />}
+        </div>
+      )}
+      {expanded && (
+        <div className="mt-2 space-y-2 animate-in fade-in duration-200">
+          <div className="rounded-md border border-border bg-muted/30 p-3">
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">Original Message</span>
+            </div>
+            <p className="text-sm text-muted-foreground line-clamp-4">{body}</p>
+          </div>
+          {ticket.ai_response && (
+            <div className="rounded-md border border-blue-900/50 bg-blue-950/30 p-3">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <Bot className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-xs font-medium text-blue-400">AI Response</span>
+              </div>
+              <p className="text-sm text-blue-200/80 line-clamp-6">{ticket.ai_response}</p>
+            </div>
+          )}
+          {ticket.error_message && (
+            <div className="rounded-md border border-red-900/50 bg-red-950/30 px-3 py-2">
+              <p className="text-xs text-red-300">{ticket.error_message}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviousRuns({ runs }: { runs: Ticket[][] }) {
+  if (runs.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <History className="h-4 w-4" />
+          Previous Runs
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {runs.map((run, runIdx) => {
+          const runTime = new Date(run[0].created_at);
+          const successCount = run.filter((t) => t.status === "done").length;
+          const errorCount = run.filter((t) => t.status === "error").length;
+
+          return (
+            <div key={runIdx} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground">
+                  {runTime.toLocaleDateString()} at {runTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {successCount} classified{errorCount > 0 ? `, ${errorCount} failed` : ""}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                {run.map((ticket) => (
+                  <TicketResult key={ticket.id} ticket={ticket} />
+                ))}
+              </div>
+              {runIdx < runs.length - 1 && <div className="border-t border-border" />}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
 // --- Main Demo Component ---
 
 function DemoContent() {
   const [steps, setSteps] = useState<DemoStep[]>(INITIAL_STEPS);
   const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [previousRuns, setPreviousRuns] = useState<Ticket[][]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -181,6 +310,23 @@ function DemoContent() {
   const updateActivity = useCallback((id: string, updates: Partial<Omit<ActivityEntry, "id">>) => {
     setActivity((prev) => prev.map((e) => (e.id === id ? { ...e, ...updates, timestamp: new Date() } : e)));
   }, []);
+
+  const fetchPreviousRuns = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tickets?limit=50");
+      if (res.ok) {
+        const data = await res.json();
+        const tickets: Ticket[] = data.tickets ?? [];
+        setPreviousRuns(groupTicketsByRun(tickets));
+      }
+    } catch {
+      // Non-critical, silently fail
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPreviousRuns();
+  }, [fetchPreviousRuns]);
 
   const runDemoSync = useCallback(async () => {
     setIsRunning(true);
@@ -311,8 +457,9 @@ function DemoContent() {
       setError(err instanceof Error ? err.message : "Demo sync failed");
     } finally {
       setIsRunning(false);
+      fetchPreviousRuns();
     }
-  }, [addActivity]);
+  }, [addActivity, updateActivity, fetchPreviousRuns]);
 
   const hasStarted = steps.some((s) => s.status !== "waiting");
 
@@ -387,6 +534,9 @@ function DemoContent() {
             </CardContent>
           </Card>
         )}
+
+        {/* Previous Runs */}
+        <PreviousRuns runs={previousRuns} />
       </main>
     </div>
   );
