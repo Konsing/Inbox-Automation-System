@@ -785,11 +785,16 @@ function DemoContent() {
           const fromActivity = getClassifiedFromActivity(activity);
           const fromDb = previousRuns.length > 0 ? getClassifiedFromTickets(previousRuns[0]) : [];
           const summaryEmails = fromActivity.length > 0 ? fromActivity : fromDb;
-          return <RunSummary emails={summaryEmails} />;
+          const summaryUsesLatestRun = fromActivity.length === 0 && fromDb.length > 0;
+          return (
+            <>
+              <RunSummary emails={summaryEmails} />
+              {/* Previous Runs — skip the latest run if already shown in summary */}
+              <PreviousRuns runs={summaryUsesLatestRun ? previousRuns.slice(1) : previousRuns} />
+            </>
+          );
         })()}
-
-        {/* Previous Runs */}
-        <PreviousRuns runs={previousRuns} />
+        {isRunning && <PreviousRuns runs={previousRuns} />}
       </main>
     </div>
   );
