@@ -1,7 +1,7 @@
 import { Header } from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Mail, Play, ArrowRight, Bot, Zap, Database } from "lucide-react";
+import { Mail, Play, ArrowRight, Bot, Zap, Database, LayoutDashboard } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
@@ -23,6 +23,12 @@ export default function Home() {
               <Button size="lg">
                 <Play className="mr-2 h-4 w-4" />
                 Try the Demo
+              </Button>
+            </Link>
+            <Link href="/dashboard">
+              <Button variant="outline" size="lg">
+                <LayoutDashboard className="mr-2 h-4 w-4" />
+                Dashboard
               </Button>
             </Link>
           </div>
