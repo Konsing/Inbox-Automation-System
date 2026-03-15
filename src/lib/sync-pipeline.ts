@@ -56,19 +56,33 @@ export async function* runSyncPipeline(accountId: string): AsyncGenerator<SyncEv
     return;
   }
 
-  yield { step: "fetching", detail: `Found ${rawEmails.length} unread emails`, progress: { current: 0, total: rawEmails.length } };
+  // Filter out emails already classified in Supabase to avoid wasting Gemini API calls
+  const { data: existingEmails } = await supabase
+    .from("emails")
+    .select("gmail_id")
+    .in("gmail_id", rawEmails.map((e) => e.gmail_id));
 
-  // Step 3: Classify + generate replies in single AI call per email (batches of 2 for 5 RPM limit)
-  yield { step: "classifying", detail: `Classifying ${rawEmails.length} emails...`, progress: { current: 0, total: rawEmails.length } };
+  const existingIds = new Set((existingEmails ?? []).map((e) => e.gmail_id));
+  const newEmails = rawEmails.filter((e) => !existingIds.has(e.gmail_id));
+
+  if (newEmails.length === 0) {
+    yield { step: "done", detail: `${rawEmails.length} unread emails already classified`, stats: { urgent: 0, high: 0, medium: 0, low: 0 } };
+    return;
+  }
+
+  yield { step: "fetching", detail: `Found ${rawEmails.length} unread, ${newEmails.length} new`, progress: { current: 0, total: newEmails.length } };
+
+  // Step 3: Classify + generate replies in single AI call per email (batches of 2 for rate limits)
+  yield { step: "classifying", detail: `Classifying ${newEmails.length} emails...`, progress: { current: 0, total: newEmails.length } };
 
   const aiResults = await classifyAndRespondBatch(
-    rawEmails.map((e) => ({ subject: e.subject, body_text: e.body_text, from_address: e.from_address })),
+    newEmails.map((e) => ({ subject: e.subject, body_text: e.body_text, from_address: e.from_address })),
     2
   );
 
   const classifications = aiResults.map((r) => r.classification);
 
-  yield { step: "classifying", detail: `Classified ${rawEmails.length} emails`, progress: { current: rawEmails.length, total: rawEmails.length } };
+  yield { step: "classifying", detail: `Classified ${newEmails.length} emails`, progress: { current: newEmails.length, total: newEmails.length } };
 
   // Step 4: Drafts already generated — filter to urgent/high only
   yield { step: "drafting", detail: "Processing draft replies..." };
@@ -76,7 +90,7 @@ export async function* runSyncPipeline(accountId: string): AsyncGenerator<SyncEv
   // Step 5: Store in Supabase
   yield { step: "storing", detail: "Saving to database..." };
 
-  const emailRows = rawEmails.map((raw, i) => ({
+  const emailRows = newEmails.map((raw, i) => ({
     account_id: accountId,
     gmail_id: raw.gmail_id,
     gmail_message_id: raw.gmail_message_id,
@@ -107,7 +121,7 @@ export async function* runSyncPipeline(accountId: string): AsyncGenerator<SyncEv
     .from("emails")
     .select("*")
     .eq("account_id", accountId)
-    .in("gmail_id", rawEmails.map((e) => e.gmail_id));
+    .in("gmail_id", newEmails.map((e) => e.gmail_id));
 
   const slackWebhook = process.env.SLACK_WEBHOOK_URL;
   if (slackWebhook && storedEmails && storedEmails.length > 0) {
