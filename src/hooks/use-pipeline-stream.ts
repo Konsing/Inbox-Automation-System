@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import type { Ticket, PipelineStep, PipelineStepStatus, PipelineEvent } from "@/lib/types";
+import { getStoredPassword } from "@/components/password-gate";
 
 const INITIAL_STEPS: PipelineStep[] = [
   { id: "received", label: "Received", description: "Message received", status: "waiting" },
@@ -64,7 +65,7 @@ export function usePipelineStream() {
       const response = await fetch("/api/pipeline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message, password: getStoredPassword() }),
         signal: abortRef.current.signal,
       });
 

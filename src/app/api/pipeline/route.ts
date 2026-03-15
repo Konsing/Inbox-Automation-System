@@ -20,6 +20,14 @@ function iteratorToStream(iterator: AsyncGenerator) {
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const message = body.message?.trim();
+  const password = body.password;
+
+  if (process.env.DEMO_PASSWORD && password !== process.env.DEMO_PASSWORD) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   if (!message) {
     return new Response(JSON.stringify({ error: "Message is required" }), {
