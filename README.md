@@ -6,23 +6,34 @@ An AI-powered email classification and response pipeline with real-time visualiz
 
 ## Screenshots
 
-<!-- Demo page: live activity feed with classification results -->
-![Demo — Live Activity Feed](docs/screenshots/demo.png)
+### Home
 
-<!-- Landing page / home screen -->
 ![Home](docs/screenshots/home.png)
+*Landing page with feature highlights and quick access to the demo and dashboard.*
 
-<!-- Dashboard after syncing: classified emails with badges -->
+### Demo — Live Activity Feed
+
+![Demo — Live Activity Feed](docs/screenshots/demo.png)
+*Demo mode processes sample emails through the real AI pipeline with a live activity feed showing each classification step.*
+
+### Dashboard — Synced Inbox
+
 ![Dashboard — After Sync](docs/screenshots/dashboard-synced.png)
+*Production dashboard after syncing Gmail — emails are classified with priority, category, and sentiment badges.*
 
-<!-- AI-generated reply suggestion -->
+### AI Suggested Response
+
 ![AI Suggested Response](docs/screenshots/ai-response.png)
+*Gemini generates a professional draft reply for urgent and high-priority emails.*
 
-<!-- Slack notifications -->
+### Slack Notifications
+
 <p align="center">
-  <img src="docs/screenshots/slack-browser.png" alt="Slack Notification — Browser" height="400" width="49%">
-  <img src="docs/screenshots/slack-mobile.png" alt="Slack Notification — Mobile" height="400" width="49%">
+  <img src="docs/screenshots/slack-browser.png" alt="Slack Notification — Browser" height="400">
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/screenshots/slack-mobile.png" alt="Slack Notification — Mobile" height="400">
 </p>
+<p align="center"><em>Slack digest notification — browser (left) and mobile (right).</em></p>
 
 ## What It Does
 
