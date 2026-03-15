@@ -250,8 +250,8 @@ function DemoContent() {
             }
           }
 
-          // Parse the last ticket state
-          const dataMatches = [...result.matchAll(/data: ({.*})/g)];
+          // Parse the last ticket state (match only "event: step" lines, skip "event: complete")
+          const dataMatches = [...result.matchAll(/event: step\ndata: ({.*})/g)];
           const lastData = dataMatches[dataMatches.length - 1];
           if (lastData) {
             const parsed = JSON.parse(lastData[1]);
