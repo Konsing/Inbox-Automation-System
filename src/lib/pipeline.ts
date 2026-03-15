@@ -1,5 +1,5 @@
 import { getSupabase } from "./supabase";
-import { classifyMessage, generateResponse } from "./gemini";
+import { classifyAndRespond } from "./gemini";
 import type { PipelineEvent, Ticket } from "./types";
 
 export async function* runPipeline(message: string): AsyncGenerator<PipelineEvent> {
@@ -22,7 +22,7 @@ export async function* runPipeline(message: string): AsyncGenerator<PipelineEven
   yield { step: "classifying", ticket: ticket as Ticket };
 
   try {
-    const classification = await classifyMessage(message);
+    const { classification, aiResponse } = await classifyAndRespond(message);
 
     const { data: classifiedTicket, error: classifyError } = await supabase
       .from("tickets")
@@ -43,10 +43,8 @@ export async function* runPipeline(message: string): AsyncGenerator<PipelineEven
 
     yield { step: "classified", ticket: classifiedTicket as Ticket };
 
-    // Step 3: Generate AI response
+    // Step 3: Store AI response (already generated in single call)
     yield { step: "generating", ticket: classifiedTicket as Ticket };
-
-    const aiResponse = await generateResponse(message, classification);
 
     const { data: completedTicket, error: responseError } = await supabase
       .from("tickets")

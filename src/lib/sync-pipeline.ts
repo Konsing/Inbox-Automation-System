@@ -1,18 +1,18 @@
 import { getSupabase } from "./supabase";
 import { fetchUnreadEmails } from "./gmail";
-import { classifyEmail, generateEmailReply } from "./gemini";
+import { classifyAndRespondEmail } from "./gemini";
 import { postSlackDigest } from "./slack";
 import type { SyncEvent, Email, EmailClassification } from "./types";
 
-async function classifyBatch(
+async function classifyAndRespondBatch(
   emails: Array<{ subject: string; body_text: string; from_address: string }>,
   batchSize: number
-): Promise<EmailClassification[]> {
-  const results: EmailClassification[] = [];
+): Promise<Array<{ classification: EmailClassification; draftReply: string }>> {
+  const results: Array<{ classification: EmailClassification; draftReply: string }> = [];
   for (let i = 0; i < emails.length; i += batchSize) {
     const batch = emails.slice(i, i + batchSize);
     const batchResults = await Promise.all(
-      batch.map((e) => classifyEmail(e.subject, e.body_text, e.from_address))
+      batch.map((e) => classifyAndRespondEmail(e.subject, e.body_text, e.from_address))
     );
     results.push(...batchResults);
   }
@@ -58,34 +58,20 @@ export async function* runSyncPipeline(accountId: string): AsyncGenerator<SyncEv
 
   yield { step: "fetching", detail: `Found ${rawEmails.length} unread emails`, progress: { current: 0, total: rawEmails.length } };
 
-  // Step 3: Classify in parallel batches of 3
+  // Step 3: Classify + generate replies in single AI call per email (batches of 2 for 5 RPM limit)
   yield { step: "classifying", detail: `Classifying ${rawEmails.length} emails...`, progress: { current: 0, total: rawEmails.length } };
 
-  const classifications = await classifyBatch(
+  const aiResults = await classifyAndRespondBatch(
     rawEmails.map((e) => ({ subject: e.subject, body_text: e.body_text, from_address: e.from_address })),
-    3
+    2
   );
+
+  const classifications = aiResults.map((r) => r.classification);
 
   yield { step: "classifying", detail: `Classified ${rawEmails.length} emails`, progress: { current: rawEmails.length, total: rawEmails.length } };
 
-  // Step 4: Generate drafts for urgent/high
-  yield { step: "drafting", detail: "Generating draft replies for urgent emails..." };
-
-  const drafts: (string | null)[] = [];
-  for (let i = 0; i < rawEmails.length; i++) {
-    const cls = classifications[i];
-    if (cls.priority === "urgent" || cls.priority === "high") {
-      const draft = await generateEmailReply(
-        rawEmails[i].from_address,
-        rawEmails[i].subject,
-        rawEmails[i].body_text,
-        cls
-      );
-      drafts.push(draft);
-    } else {
-      drafts.push(null);
-    }
-  }
+  // Step 4: Drafts already generated — filter to urgent/high only
+  yield { step: "drafting", detail: "Processing draft replies..." };
 
   // Step 5: Store in Supabase
   yield { step: "storing", detail: "Saving to database..." };
@@ -106,7 +92,9 @@ export async function* runSyncPipeline(accountId: string): AsyncGenerator<SyncEv
     sentiment: classifications[i].sentiment,
     summary: classifications[i].summary,
     reply_deadline: classifications[i].reply_deadline,
-    draft_reply: drafts[i],
+    draft_reply: (classifications[i].priority === "urgent" || classifications[i].priority === "high")
+      ? aiResults[i].draftReply
+      : null,
   }));
 
   await supabase.from("emails").upsert(emailRows, { onConflict: "gmail_id" });
