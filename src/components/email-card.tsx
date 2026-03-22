@@ -16,6 +16,10 @@ interface EmailCardProps {
 
 export function EmailCard({ email, demoMode, onReplySent }: EmailCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showFullMessage, setShowFullMessage] = useState(false);
+
+  // Roughly check if the message is long enough to need collapsing (~6 lines worth)
+  const isLongMessage = (email.body_text?.length ?? 0) > 400;
 
   return (
     <Card>
@@ -51,7 +55,22 @@ export function EmailCard({ email, demoMode, onReplySent }: EmailCardProps) {
           {email.body_text && (
             <div className="rounded-lg border border-amber-500/20 bg-amber-950/20 p-3">
               <p className="mb-1 text-xs font-medium text-amber-400/80">Original Message</p>
-              <p className="text-sm whitespace-pre-wrap text-amber-100/70">{email.body_text}</p>
+              <div className="relative">
+                <p className={`text-sm whitespace-pre-wrap break-words text-amber-100/70 ${isLongMessage && !showFullMessage ? "line-clamp-6" : ""}`}>
+                  {email.body_text}
+                </p>
+                {isLongMessage && !showFullMessage && (
+                  <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-amber-950/80 to-transparent" />
+                )}
+              </div>
+              {isLongMessage && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowFullMessage(!showFullMessage); }}
+                  className="mt-2 text-xs font-medium text-amber-400 hover:text-amber-300 transition-colors"
+                >
+                  {showFullMessage ? "Show less" : "Show full message"}
+                </button>
+              )}
             </div>
           )}
           <div>
