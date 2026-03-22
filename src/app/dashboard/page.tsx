@@ -35,7 +35,22 @@ function DashboardContent() {
   }, [startSync, refetch]);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen overflow-hidden bg-background">
+      {/* Aurora background */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-blue-500/20 blur-[120px] animate-pulse" />
+        <div className="absolute top-20 right-0 h-[400px] w-[400px] rounded-full bg-purple-500/15 blur-[120px] animate-pulse [animation-delay:2s]" />
+        <div className="absolute bottom-0 left-1/3 h-[350px] w-[350px] rounded-full bg-indigo-500/15 blur-[120px] animate-pulse [animation-delay:4s]" />
+      </div>
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+          backgroundSize: "60px 60px",
+        }}
+      />
+
+      <div className="relative z-10">
       <Header />
       <main className="container mx-auto space-y-6 px-4 py-6">
         {/* Auth Error Banner */}
@@ -90,6 +105,7 @@ function DashboardContent() {
           </Card>
         )}
       </main>
+      </div>
     </div>
   );
 }

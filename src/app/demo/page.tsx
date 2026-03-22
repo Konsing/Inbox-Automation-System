@@ -709,10 +709,25 @@ function DemoContent() {
   const hasStarted = steps.some((s) => s.status !== "waiting");
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
+      {/* Aurora background */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-blue-500/20 blur-[120px] animate-pulse" />
+        <div className="absolute top-20 right-0 h-[400px] w-[400px] rounded-full bg-purple-500/15 blur-[120px] animate-pulse [animation-delay:2s]" />
+        <div className="absolute bottom-0 left-1/3 h-[350px] w-[350px] rounded-full bg-indigo-500/15 blur-[120px] animate-pulse [animation-delay:4s]" />
+      </div>
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: `linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)`,
+          backgroundSize: "60px 60px",
+        }}
+      />
+
+      <div className="relative z-10">
       <Header />
       <main className="container mx-auto space-y-6 px-4 py-6">
-        <div className="rounded-lg border border-blue-900 bg-blue-950 px-4 py-3">
+        <div className="rounded-lg border border-blue-500/20 bg-blue-950/50 backdrop-blur-sm px-4 py-3">
           <div className="flex items-center gap-2">
             <Info className="h-4 w-4 text-blue-400" />
             <p className="text-sm text-blue-200">
@@ -726,7 +741,7 @@ function DemoContent() {
             <CardTitle className="text-base">Demo Sync</CardTitle>
           </CardHeader>
           <CardContent>
-            <Button onClick={runDemoSync} disabled={isRunning}>
+            <Button onClick={runDemoSync} disabled={isRunning} className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 border-0 shadow-lg shadow-blue-500/25">
               {isRunning ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
@@ -756,7 +771,7 @@ function DemoContent() {
               </div>
 
               {error && (
-                <div className="rounded-lg border border-red-900 bg-red-950 p-3">
+                <div className="rounded-lg border border-red-500/20 bg-red-950/50 backdrop-blur-sm p-3">
                   <p className="text-sm text-red-200">{error}</p>
                 </div>
               )}
@@ -788,6 +803,7 @@ function DemoContent() {
         {/* Previous Runs */}
         <PreviousRuns runs={previousRuns} />
       </main>
+      </div>
     </div>
   );
 }
