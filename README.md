@@ -23,7 +23,7 @@ An AI-powered email classification and response pipeline with real-time visualiz
 
 ### AI Suggested Response
 
-![AI Suggested Response](docs/screenshots/ai-response-v3.png)
+![AI Suggested Response](docs/screenshots/ai-response.png)
 *Gemini generates a professional draft reply for urgent and high-priority emails.*
 
 ### Slack Notifications
