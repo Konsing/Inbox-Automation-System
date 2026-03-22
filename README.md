@@ -8,22 +8,22 @@ An AI-powered email classification and response pipeline with real-time visualiz
 
 ### Home
 
-![Home](docs/screenshots/home.png)
+![Home](docs/screenshots/home-v2.png)
 *Landing page with feature highlights and quick access to the demo and dashboard.*
 
 ### Demo — Live Activity Feed
 
-![Demo — Live Activity Feed](docs/screenshots/demo.png)
+![Demo — Live Activity Feed](docs/screenshots/demo-v2.png)
 *Demo mode processes sample emails through the real AI pipeline with a live activity feed showing each classification step.*
 
 ### Dashboard — Synced Inbox
 
-![Dashboard — After Sync](docs/screenshots/dashboard-synced.png)
+![Dashboard — After Sync](docs/screenshots/dashboard-v2.png)
 *Production dashboard after syncing Gmail — emails are classified with priority, category, and sentiment badges.*
 
 ### AI Suggested Response
 
-![AI Suggested Response](docs/screenshots/ai-response.png)
+![AI Suggested Response](docs/screenshots/ai-response-v2.png)
 *Gemini generates a professional draft reply for urgent and high-priority emails.*
 
 ### Slack Notifications

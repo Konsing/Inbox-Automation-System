@@ -60,10 +60,20 @@ export function ReplyEditor({ emailId, draftReply, replySent, onSent, demoMode }
     <div className="space-y-2">
       <Textarea
         value={body}
-        onChange={(e) => setBody(e.target.value)}
-        rows={4}
+        onChange={(e) => {
+          setBody(e.target.value);
+          e.target.style.height = "auto";
+          e.target.style.height = e.target.scrollHeight + "px";
+        }}
+        ref={(el) => {
+          if (el) {
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+          }
+        }}
+        rows={2}
         placeholder="Write your reply..."
-        className="resize-none text-sm"
+        className="resize-none text-sm overflow-hidden"
       />
       {error && <p className="text-sm text-red-500">{error}</p>}
       <Button size="sm" onClick={handleSend} disabled={!body.trim() || sending}>

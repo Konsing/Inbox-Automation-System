@@ -49,9 +49,9 @@ export function EmailCard({ email, demoMode, onReplySent }: EmailCardProps) {
       {expanded && (
         <CardContent className="animate-in fade-in slide-in-from-top-1 space-y-3 pt-0 duration-200">
           {email.body_text && (
-            <div className="rounded-lg bg-muted/50 p-3">
-              <p className="mb-1 text-xs font-medium text-muted-foreground">Original Message</p>
-              <p className="text-sm whitespace-pre-wrap line-clamp-6">{email.body_text}</p>
+            <div className="rounded-lg border border-amber-500/20 bg-amber-950/20 p-3">
+              <p className="mb-1 text-xs font-medium text-amber-400/80">Original Message</p>
+              <p className="text-sm whitespace-pre-wrap text-amber-100/70">{email.body_text}</p>
             </div>
           )}
           <div>
